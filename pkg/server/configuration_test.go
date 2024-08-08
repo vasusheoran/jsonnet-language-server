@@ -121,6 +121,29 @@ func TestConfiguration(t *testing.T) {
 }
 			`,
 		},
+		{
+			name: "tla_code config is valid",
+			settings: map[string]interface{}{
+				"tla_code": map[string]interface{}{
+					"input": "{ \"world\": {\"test\": true}}",
+				},
+			},
+			fileContent: `
+function(input)
+{
+	hello: input,
+}
+			`,
+			expectedFileOutput: `
+{
+	"hello": {
+		"world": {
+			"test": true
+		}
+	}
+}
+			`,
+		},
 	}
 
 	for _, tc := range testCases {

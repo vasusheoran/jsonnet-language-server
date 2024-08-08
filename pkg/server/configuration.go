@@ -16,6 +16,7 @@ import (
 type Configuration struct {
 	ResolvePathsWithTanka bool
 	JPaths                []string
+	TLACode               map[string]string
 	ExtVars               map[string]string
 	ExtCode               map[string]string
 	FormattingOptions     formatter.Options
@@ -96,6 +97,13 @@ func (s *Server) DidChangeConfiguration(_ context.Context, params *protocol.DidC
 				return fmt.Errorf("%w: ext_code parsing failed: %v", jsonrpc2.ErrInvalidParams, err)
 			}
 			s.configuration.ExtCode = newCode
+		case "tla_code":
+			newTLACode, err := s.parseTLACode(sv)
+			if err != nil {
+				return fmt.Errorf("%w: tla_code parsing failed: %v", jsonrpc2.ErrInvalidParams, err)
+			}
+			log.Debugf("newTLACode: %#v", newTLACode)
+			s.configuration.TLACode = newTLACode
 
 		default:
 			return fmt.Errorf("%w: unsupported settings key: %q", jsonrpc2.ErrInvalidParams, sk)
@@ -169,13 +177,41 @@ func (s *Server) parseExtCode(unparsed interface{}) (map[string]string, error) {
 	return extCode, nil
 }
 
+func (s *Server) parseTLACode(unparsed interface{}) (map[string]string, interface{}) {
+	log.WithFields(log.Fields{"method": "parseTLACode"})
+	newTLACode, ok := unparsed.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unsupported settings value for tla_code. expected json object. got: %T", unparsed)
+	}
+
+	vm := s.getVM(".")
+	tlaCode := make(map[string]string, len(newTLACode))
+	for varKey, varValue := range newTLACode {
+		vv, ok := varValue.(string)
+		if !ok {
+			log.Debugf("error: [%s]", fmt.Errorf("unsupported settings value for tla_code.%s. expected interface{}. got: %T", varKey, varValue))
+			return nil, fmt.Errorf("unsupported settings value for tla_code.%s. expected interface{}. got: %T", varKey, varValue)
+		}
+		jsonResult, _ := vm.EvaluateAnonymousSnippet("tla-code", vv)
+		tlaCode[varKey] = jsonResult
+	}
+	log.Debugf("tlaCode: [%#v]", newTLACode)
+
+	return tlaCode, nil
+}
+
 func resetExtVars(vm *jsonnet.VM, vars map[string]string, code map[string]string) {
-	vm.ExtReset()
 	for vk, vv := range vars {
 		vm.ExtVar(vk, vv)
 	}
 	for vk, vv := range code {
 		vm.ExtCode(vk, vv)
+	}
+}
+
+func resetTLACode(vm *jsonnet.VM, tlaCode map[string]string) {
+	for vk, vv := range tlaCode {
+		vm.TLACode(vk, vv)
 	}
 }
 

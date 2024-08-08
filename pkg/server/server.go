@@ -62,7 +62,9 @@ func (s *Server) getVM(path string) *jsonnet.VM {
 		vm.Importer(importer)
 	}
 
+	vm.ExtReset()
 	resetExtVars(vm, s.configuration.ExtVars, s.configuration.ExtCode)
+	resetTLACode(vm, s.configuration.TLACode)
 	return vm
 }
 
