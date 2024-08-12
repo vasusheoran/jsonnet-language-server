@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -102,7 +103,6 @@ func (s *Server) DidChangeConfiguration(_ context.Context, params *protocol.DidC
 			if err != nil {
 				return fmt.Errorf("%w: tla_code parsing failed: %v", jsonrpc2.ErrInvalidParams, err)
 			}
-			log.Debugf("newTLACode: %#v", newTLACode)
 			s.configuration.TLACode = newTLACode
 
 		default:
@@ -166,18 +166,30 @@ func (s *Server) parseExtCode(unparsed interface{}) (map[string]string, error) {
 
 	extCode := make(map[string]string, len(newVars))
 	for varKey, varValue := range newVars {
-		vv, ok := varValue.(string)
+		vv, ok := varValue.(interface{})
 		if !ok {
 			return nil, fmt.Errorf("unsupported settings value for ext_code.%s. expected string. got: %T", varKey, varValue)
 		}
-		jsonResult, _ := vm.EvaluateAnonymousSnippet("ext-code", vv)
+
+		valueBytes, err := json.Marshal(vv)
+		if err != nil {
+			msg := fmt.Sprintf("error marshaling ext_code.%s, err: %s", varKey, err.Error())
+			return nil, fmt.Errorf(msg)
+		}
+
+		jsonResult, err := vm.EvaluateAnonymousSnippet("ext-code", string(valueBytes))
+		if err != nil {
+			msg := fmt.Sprintf("error EvaluateAnonymousSnippet ext_code.%s, err: %s", varKey, err.Error())
+			return nil, fmt.Errorf(msg)
+
+		}
 		extCode[varKey] = jsonResult
 	}
 
 	return extCode, nil
 }
 
-func (s *Server) parseTLACode(unparsed interface{}) (map[string]string, interface{}) {
+func (s *Server) parseTLACode(unparsed interface{}) (map[string]string, error) {
 	log.WithFields(log.Fields{"method": "parseTLACode"})
 	newTLACode, ok := unparsed.(map[string]interface{})
 	if !ok {
@@ -187,12 +199,23 @@ func (s *Server) parseTLACode(unparsed interface{}) (map[string]string, interfac
 	vm := s.getVM(".")
 	tlaCode := make(map[string]string, len(newTLACode))
 	for varKey, varValue := range newTLACode {
-		vv, ok := varValue.(string)
+		vv, ok := varValue.(interface{})
 		if !ok {
 			log.Debugf("error: [%s]", fmt.Errorf("unsupported settings value for tla_code.%s. expected interface{}. got: %T", varKey, varValue))
 			return nil, fmt.Errorf("unsupported settings value for tla_code.%s. expected interface{}. got: %T", varKey, varValue)
 		}
-		jsonResult, _ := vm.EvaluateAnonymousSnippet("tla-code", vv)
+		valueBytes, err := json.Marshal(vv)
+		if err != nil {
+			msg := fmt.Sprintf("error marshaling tla_code.%s, err: %s", varKey, err.Error())
+			return nil, fmt.Errorf(msg)
+		}
+
+		jsonResult, err := vm.EvaluateAnonymousSnippet("tla-code", string(valueBytes))
+		if err != nil {
+			msg := fmt.Sprintf("error evaluating EvaluateAnonymousSnippet tla_code.%s, err: %s", varKey, err.Error())
+			return nil, fmt.Errorf(msg)
+
+		}
 		tlaCode[varKey] = jsonResult
 	}
 	log.Debugf("tlaCode: [%#v]", newTLACode)

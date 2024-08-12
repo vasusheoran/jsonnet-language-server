@@ -144,6 +144,32 @@ function(input)
 }
 			`,
 		},
+		{
+			name: "tla_code config is valid",
+			settings: map[string]interface{}{
+				"ext_code": map[string]interface{}{
+					"externalNameIsIpAddress": "false",
+				},
+				"tla_code": map[string]interface{}{
+					"input": "{ \"world\": {\"test\": true}}",
+				},
+			},
+			fileContent: `
+function(input)
+{
+	hello: input,
+}
+			`,
+			expectedFileOutput: `
+{
+	"hello": {
+		"world": {
+			"test": true
+		}
+	}
+}
+			`,
+		},
 	}
 
 	for _, tc := range testCases {
